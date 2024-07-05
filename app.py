@@ -4,23 +4,23 @@ from ctypes import cast, POINTER
 from comtypes import CLSCTX_ALL
 from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
-mp_drawing = mp.solutions.drawing_utils
-mp_hands = mp.solutions.hands
-cap = cv2.VideoCapture(0)
+drawing_utils = mp.solutions.drawing_utils
+hands_module = mp.solutions.hands
+capture = cv2.VideoCapture(0)
 
-devices = AudioUtilities.GetSpeakers()
-interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
-volume = cast(interface, POINTER(IAudioEndpointVolume))
-volume_range = volume.GetVolumeRange()
-min_volume = volume_range[0]
-max_volume = volume_range[1]
+audio_devices = AudioUtilities.GetSpeakers()
+interface = audio_devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
+audio_volume = cast(interface, POINTER(IAudioEndpointVolume))
+volume_limits = audio_volume.GetVolumeRange()
+volume_min = volume_limits[0]
+volume_max = volume_limits[1]
 
-with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
-    prev_distance = None
-    while cap.isOpened():
-        ret, frame = cap.read()
+with hands_module.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) as hands:
+    previous_distance = None
+    while capture.isOpened():
+        ret, frame = capture.read()
         if not ret:
-            print("Error reading frame. Exiting...")
+            print("Frame read error. Exiting...")
             break
         
         frame = cv2.flip(frame, 1)
@@ -29,27 +29,29 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
         
         if results.multi_hand_landmarks:
             for hand_landmarks in results.multi_hand_landmarks:
-                thumb_x = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].x * frame.shape[1]
-                thumb_y = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP].y * frame.shape[0]
-                index_x = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].x * frame.shape[1]
-                index_y = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP].y * frame.shape[0]
+                thumb_tip = hand_landmarks.landmark[hands_module.HandLandmark.THUMB_TIP]
+                index_tip = hand_landmarks.landmark[hands_module.HandLandmark.INDEX_FINGER_TIP]
+                thumb_x = thumb_tip.x * frame.shape[1]
+                thumb_y = thumb_tip.y * frame.shape[0]
+                index_x = index_tip.x * frame.shape[1]
+                index_y = index_tip.y * frame.shape[0]
                 
                 distance = ((thumb_x - index_x)**2 + (thumb_y - index_y)**2)**0.5
                 
-                if prev_distance:
-                    volume_change = int((distance - prev_distance) * 5)
-                    current_volume = volume.GetMasterVolumeLevel()
-                    new_volume = max(min(current_volume + volume_change, max_volume), min_volume)
-                    volume.SetMasterVolumeLevel(new_volume, None)
+                if previous_distance is not None:
+                    volume_change = (distance - previous_distance) * 0.5
+                    current_volume = audio_volume.GetMasterVolumeLevel()
+                    new_volume = max(min(current_volume + volume_change, volume_max), volume_min)
+                    audio_volume.SetMasterVolumeLevel(new_volume, None)
                 
-                prev_distance = distance
+                previous_distance = distance
                 
-                mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                drawing_utils.draw_landmarks(frame, hand_landmarks, hands_module.HAND_CONNECTIONS)
         
         cv2.imshow('Hand Tracking', frame)
         
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
-cap.release()
+capture.release()
 cv2.destroyAllWindows()
