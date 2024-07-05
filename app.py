@@ -37,7 +37,7 @@ with mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5) a
                 distance = ((thumb_x - index_x)**2 + (thumb_y - index_y)**2)**0.5
                 
                 if prev_distance:
-                    volume_change = int((distance - prev_distance) * 5)
+                    volume_change = (distance - prev_distance) * 0.5
                     current_volume = volume.GetMasterVolumeLevel()
                     new_volume = max(min(current_volume + volume_change, max_volume), min_volume)
                     volume.SetMasterVolumeLevel(new_volume, None)
